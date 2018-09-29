@@ -1,70 +1,154 @@
 package main
 
 import (
-	"net/http"
+	"bytes"
+	"encoding/json"
+	"io"
+	"os"
 	"sync"
+	"time"
 )
 
-// these should exist within main proxy
+// these should exist within main proxy (accessible everywhere)
 var (
-	cache_table = table{Map: make(map[string]page)}
-	cache_policy = 0 // 0 = LRU, 1 = LFU
-)
+	cacheTable = make(map[string]page)
+	cachePolicy = 0 // 0 = LRU, 1 = LFU
+	cachePath = "./cache/"
+	cacheLock sync.Mutex
+	cacheSize uint64
+	cacheCapacity uint64
 
-type table struct {
-	lock sync.Mutex
-	Map map[string]page
-}
+	Marshal = func(i interface{}) (io.Reader, error) {
+		data, err := json.MarshalIndent(i, "", "\t")
+		if err != nil {
+			return nil, err
+		}
+		return bytes.NewReader(data), nil
+	}
+
+	Unmarshal = func(r io.Reader, i interface{}) (error) {
+		return json.NewDecoder(r).Decode(i)
+	}
+)
 
 type page struct {
-	url_data string
+	urlData string
 	filename string
-	expires_at uint64
-}
+	pageSize uint64
+	expiresAt uint64
+	timesAccessed uint64
+	safe bool // boolean to keep track of if page finished being stored
+	}
 
-// Possible return type for responses sent back to main proxy
-type response struct {
-}
-
-func initializeCache(policy int) {
-	cache_policy = policy
+func initializeCache(policy int, capacity uint64) {
+	cacheLock.Lock()
+	defer cacheLock.Unlock()
+	cachePolicy = policy
+	cacheCapacity = capacity
 	loadCacheFromDisk()
 }
 
-// goroutine function for a new request (called directly from proxy), also responsible for responding to client
-func cacheWorker(w http.ResponseWriter) {
-
-}
-
 // loads cache from disk
-func loadCacheFromDisk() {
+func loadCacheFromDisk() (error){
 
-}
+	file, err := os.Open(cachePath + "cacheTable")
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	return Unmarshal(file,cacheTable)
+	}
 
 // saves cache to disk
-func writeCacheToDisk() {
+func writeCacheToDisk() (error){
+
+	file, err := os.Create(cachePath + "cacheTable")
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	data, err := Marshal(cacheTable)
+	if err != nil {
+		return err
+	}
+
+	_, err = io.Copy(file,data)
+	return err
 
 }
 
 // check for url data in cache, return page if present
 func checkCache(url string) (avail bool, site page) {
-	if entry, ok := cache_table.Map[url]; ok {
+
+	cacheLock.Lock()
+	defer cacheLock.Unlock()
+
+	if entry, ok := cacheTable[url]; ok {
+		if !entry.safe || entry.expiresAt < uint64(time.Now().UnixNano()) {
+			deleteFromCache(url)
+			return false, page{}
+		}
 		return true, entry
 	}
 	return false, page{}
 }
 
-// update contents of cache based on last request
-func updateCache() {
+func deleteFromCache(url string) {
+
+	delete(cacheTable,url)
 	writeCacheToDisk()
 }
 
-func deleteFromCache() {
-	// delete from disk
-	// clear cache entry
+func removeExpired() {
+
+	cacheLock.Lock()
+	defer cacheLock.Unlock()
+
+	for url, site := range cacheTable {
+		if site.expiresAt < uint64(time.Now().UnixNano()) {
+			cacheCapacity -= site.pageSize
+			deleteFromCache(url)
+		}
+	}
 }
 
-// get url data from cache by request
-func retrieveFromCache(url string ) (err error) {
+// complete new client request
+func processRequest(url string) (error) {
 
+	avail, site := checkCache(url)
+	if avail {
+		// TODO: return to client
+		// TODO: increment timesAccessed, set expiresAt again
+		return nil
+	}
+	// not in memory
+	// TODO: send request to parser
+	// TODO: update cache capacity
+	if removeExpired(); cacheCapacity > cacheSize {
+		if cachePolicy == 0 {
+			err := LRU(url, site)
+			if err != nil {
+				return err
+			}
+		} else {
+			err := LFU(url, site)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	// TODO: save in cacheTable
+	// TODO: return to client
+	writeCacheToDisk()
+	return nil
+}
+
+// TODO: Implement cache policies
+func LRU(url string, site page) (error) {
+	return nil
+}
+
+func LFU(url string, site page) (error) {
+	return nil
 }
