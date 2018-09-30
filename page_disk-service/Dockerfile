@@ -13,9 +13,11 @@ RUN ./azureinstall.sh
 RUN apt-get install -y vim
 RUN apt-get install -y git
 
+
 ADD /go /root/go
 
 EXPOSE 8888
 EXPOSE 8000
 
-CMD tail -f /dev/null
+CMD /root/go/src/diskclient/run_disk.sh
+#CMD tail -f /dev/null
