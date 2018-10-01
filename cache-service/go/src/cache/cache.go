@@ -1,7 +1,7 @@
 package cache
 
 import (
-	"../../../../page_disk-service/go/src/diskclient"
+	"../../../../page_disk-service/go/src/disk_client"
 	"errors"
 	"io"
 	"net/http"
@@ -18,9 +18,9 @@ type C interface {
 
 	LoadCacheFromDisk() (error)
 
-	WritePageToDisk(url string) (p diskclient.Page, err error)
+	WritePageToDisk(url string) (p disk_client.Page, err error)
 
-	CheckCache(url string) (avail bool, site diskclient.Page)
+	CheckCache(url string) (avail bool, site disk_client.Page)
 
 	DeleteFromCache(url string)
 
@@ -28,24 +28,24 @@ type C interface {
 
 	ProcessRequest(w http.ResponseWriter, req *http.Request)
 
-	UpdatePage(url string) (p diskclient.Page, err error)
+	UpdatePage(url string) (p disk_client.Page, err error)
 
-	LRU(site diskclient.Page) (error)
+	LRU(site disk_client.Page) (error)
 
-	LFU(site diskclient.Page) (error)
+	LFU(site disk_client.Page) (error)
 }
 
 // these should exist within main proxy (accessible everywhere)
 var (
 	initFlag = false
-	cacheTable = make(map[string]*diskclient.Page)
+	cacheTable = make(map[string]*disk_client.Page)
 	cachePolicy = 0 // 0 = LRU, 1 = LFU
 	cacheLock sync.Mutex
 	cacheSize int64
 	cacheCapacity int64
 	expiryTime int64
 
-	diskCache diskclient.DC
+	diskCache disk_client.DC
 
 )
 
@@ -61,7 +61,7 @@ func (c Cache) InitializeCache(policy int, capacity int64, expiry int64) (err er
 	cacheCapacity = capacity
 	expiryTime = expiry
 
-	dc, err := diskclient.Initialize(cacheCapacity)
+	dc, err := disk_client.Initialize(cacheCapacity)
 	if err != nil {return err}
 
 	diskCache = dc
@@ -90,7 +90,7 @@ func (c Cache) LoadCacheFromDisk() (err error){
 }
 
 // saves cache to disk
-func (c Cache) WritePageToDisk(url string) (p diskclient.Page, err error){
+func (c Cache) WritePageToDisk(url string) (p disk_client.Page, err error){
 
 	cacheLock.Lock()
 	defer cacheLock.Unlock()
@@ -106,7 +106,7 @@ func (c Cache) WritePageToDisk(url string) (p diskclient.Page, err error){
 	err = diskCache.MarkSafe(url)
 
 	if err != nil {
-		return diskclient.Page{}, err
+		return disk_client.Page{}, err
 	}
 	cacheTable[url].Safe = true
 	return *cacheTable[url], nil
@@ -125,17 +125,17 @@ func (c Cache) DeleteFromCache(url string) {
 }
 
 // check for url data in cache, return page if present
-func (c Cache) CheckCache(url string) (avail bool, site diskclient.Page) {
+func (c Cache) CheckCache(url string) (avail bool, site disk_client.Page) {
 	// TODO: lock here?
 
 	if entry, ok := cacheTable[url]; ok {
 		if !entry.Safe || entry.Timestamp + expiryTime < int64(time.Now().UnixNano()) {
 			c.DeleteFromCache(url)
-			return false, diskclient.Page{}
+			return false, disk_client.Page{}
 		}
 		return true, *entry
 	}
-	return false, diskclient.Page{}
+	return false, disk_client.Page{}
 }
 
 func (c Cache) RemoveExpired() {
@@ -147,7 +147,7 @@ func (c Cache) RemoveExpired() {
 	}
 }
 
-func (c Cache) UpdatePage(url string) (p diskclient.Page, err error){
+func (c Cache) UpdatePage(url string) (p disk_client.Page, err error){
 	cacheLock.Lock()
 
 	cacheTable[url].Timestamp = int64(time.Now().UnixNano())
@@ -161,10 +161,10 @@ func (c Cache) UpdatePage(url string) (p diskclient.Page, err error){
 // complete new client request
 func (c Cache) ProcessRequest(w http.ResponseWriter, req *http.Request) {
 
-	avail, site := c.CheckCache(req.URL.String())
+	avail, site := c.CheckCache(req.Host+req.URL.Path)
 	if avail {
 		// in cache, return page
-		updatedPage, err := c.UpdatePage(req.URL.String())
+		updatedPage, err := c.UpdatePage(req.Host+req.URL.Path)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusServiceUnavailable)
 			return
@@ -175,6 +175,16 @@ func (c Cache) ProcessRequest(w http.ResponseWriter, req *http.Request) {
 	}
 	// not in memory
 	// TODO: send request to parser
+	//pageScraper := page_scraper.NewPageScraper(req.Host+req.URL.Path)
+	//newPage, err := pageScraper.Execute()
+	//if err != nil {
+	//	http.Error(w, err.Error(), http.StatusServiceUnavailable)
+	//	return
+	//}
+	//
+	//cacheLock.Lock()
+	//cacheTable[req.Host+req.URL.Path] = &newPage
+
 	// TODO: add check in parser for page too large for cache to be returned immediately
 	// TODO: update cache capacity
 	if c.RemoveExpired(); cacheCapacity > cacheSize {
@@ -193,13 +203,13 @@ func (c Cache) ProcessRequest(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 	// TODO: save in cacheTable
-	c.WritePageToDisk(req.URL.String())
+	c.WritePageToDisk(req.Host+req.URL.Path)
 	// TODO: return to client
-	//io.Copy(w, strings.NewReader(cacheTable[req.URL.String()].Html))
+	//io.Copy(w, strings.NewReader(cacheTable[req.Host+req.URL.Path].Html))
 	return
 }
 
-func (c Cache) LRU(site diskclient.Page) (error) {
+func (c Cache) LRU(site disk_client.Page) (error) {
 	if cacheCapacity < site.Size {
 		return errors.New("size of page exceeds size of cache")
 	}
@@ -218,7 +228,7 @@ func (c Cache) LRU(site diskclient.Page) (error) {
 	return nil
 }
 
-func (c Cache) LFU(site diskclient.Page) (error) {
+func (c Cache) LFU(site disk_client.Page) (error) {
 	if cacheCapacity < site.Size {
 		return errors.New("size of page exceeds size of cache")
 	}
