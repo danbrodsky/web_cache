@@ -1,18 +1,21 @@
 version: '3.4'
 services:
-  page_disk-service:
+  webcache-service:
     build:
-      context: ./page_disk-service
+      context: ./webcache-service
     network_mode: "host" 
     ports:
-      - "9999:9999"
+      - "8888:8888"
     depends_on:
       - mongodb
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./data:/root/res
     environment:
-      - DATABASE_HOST=mongodb
-      - DEBUG=1
+      - RES_ROOT_DIR=/root/res
+      - RES_ENTRYPOINT=/res      
+      - DEPLOY_HOST_PORT=8888
+      - DEPLOY_HOST_IP=127.0.0.1
       - DATABASE_HOST=127.0.0.1
       - DATABASE_PORT=27017
       - GOPATH=/root/go
