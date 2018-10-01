@@ -21,7 +21,7 @@ type PageScraper struct {
 
 type PS interface {
 	// gets page and caches resources on disk for tags html link, script, img and updates the tags according to it
-	execute() (page diskclient.Page, err error)
+	Execute() (page diskclient.Page, err error)
 }
 
 var (
@@ -147,8 +147,8 @@ func GetHtml(url string) (text string, err error) {
     return text, err
 }
 
-func (ps PageScraper) execute() (page diskclient.Page, err error) {
-    HOSTPORT = os.Getenv("DEPLOY_HOST_IP") + ":" + os.Getenv("DEPLOY_HOST_PORT") + "/"
+func (ps PageScraper) Execute() (page diskclient.Page, err error) {
+    HOSTPORT = "http://" + os.Getenv("DEPLOY_HOST_IP") + ":" + os.Getenv("DEPLOY_HOST_PORT")
     if(len(HOSTPORT) < 1){
 	return page,errors.New("host port environment variables not set")
     }
