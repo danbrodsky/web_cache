@@ -18,7 +18,7 @@ type C interface {
 
 	LoadCacheFromDisk() (error)
 
-	WritePageToDisk(url string) (error)
+	WritePageToDisk(url string) (p diskclient.Page, err error)
 
 	CheckCache(url string) (avail bool, site diskclient.Page)
 
@@ -26,9 +26,9 @@ type C interface {
 
 	RemoveExpired()
 
-	ProcessRequest(url string) (error)
+	ProcessRequest(w http.ResponseWriter, req *http.Request)
 
-	UpdatePage(url string)
+	UpdatePage(url string) (p diskclient.Page, err error)
 
 	LRU(site diskclient.Page) (error)
 
@@ -159,16 +159,19 @@ func (c Cache) UpdatePage(url string) (p diskclient.Page, err error){
 }
 
 // complete new client request
-func (c Cache) ProcessRequest(w http.ResponseWriter, req *http.Request) (error) {
+func (c Cache) ProcessRequest(w http.ResponseWriter, req *http.Request) {
 
 	avail, site := c.CheckCache(req.URL.String())
 	if avail {
 		// in cache, return page
 		updatedPage, err := c.UpdatePage(req.URL.String())
-		if err != nil {return err}
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusServiceUnavailable)
+			return
+		}
 		// TODO: Add header write
 		io.Copy(w, strings.NewReader(updatedPage.Html))
-		return nil
+		return
 	}
 	// not in memory
 	// TODO: send request to parser
@@ -178,12 +181,14 @@ func (c Cache) ProcessRequest(w http.ResponseWriter, req *http.Request) (error) 
 		if cachePolicy == 0 {
 			err := c.LRU(site)
 			if err != nil {
-				return err
+				http.Error(w, err.Error(), http.StatusServiceUnavailable)
+				return
 			}
 		} else {
 			err := c.LFU(site)
 			if err != nil {
-				return err
+				http.Error(w, err.Error(), http.StatusServiceUnavailable)
+				return
 			}
 		}
 	}
@@ -191,7 +196,7 @@ func (c Cache) ProcessRequest(w http.ResponseWriter, req *http.Request) (error) 
 	c.WritePageToDisk(req.URL.String())
 	// TODO: return to client
 	//io.Copy(w, strings.NewReader(cacheTable[req.URL.String()].Html))
-	return nil
+	return
 }
 
 func (c Cache) LRU(site diskclient.Page) (error) {
