@@ -1,28 +1,31 @@
 package diskclient
 
-import(
+import (
 	"fmt"
-	"github.com/mongodb/mongo-go-driver/mongo"
 	"github.com/mongodb/mongo-go-driver/bson"
+	"github.com/mongodb/mongo-go-driver/mongo"
 	//"github.com/mongodb/mongo-go-driver/bson/objectid"
 	"context"
 	"github.com/mongodb/mongo-go-driver/mongo/clientopt"
 	"time"
-	"errors"
 )
 
 type DiskClient struct {
 }
 
 var (
-        initFlag = false
-	chCapacity uint8
+	initFlag = false
+	cacheCapacity int64
 	pageCh chan Page
 	collection *mongo.Collection
+	diskClient DiskClient
 )
 
 type Page struct {
         Url     string `json:"url" bson:"url"`
+        Size int64 `json:"size" bson:"size"`
+        Safe bool `json:"safe" bson:"safe"`
+        TimesUsed int64 `json:"timesUsed" bson:"timesUsed"`
         Timestamp int64 `json:"timestamp" bson:"timestamp"` // Unix timestamp
         Images  []string  `json:"images" bson:"images"`
         Links   []string  `json:"links"  bson:"links"`
@@ -31,7 +34,7 @@ type Page struct {
 }
 
 type DC interface {
-	// returns 1 is success else -1
+	// returns 1 if success else -1
 	AddPage(page Page) (flag int)
 
 	// returns nil if success an error if fail
@@ -42,9 +45,15 @@ type DC interface {
 
 	// refreshes timestamp for a page to current time
 	RefreshPageTimestamp(url string) (timestamp int64, err error)
+
+	MarkSafe(url string) (err error)
+
+	MarkUnsafe(url string) (err error)
+
+	GetAllPages() (pa []Page, err error)
 }
 
-func Initialize(ChCapacity uint8) (diskClient DC, err error) {
+func Initialize(CacheCapacity int64) (client DC, err error) {
         if !initFlag {
                 option := clientopt.Auth(clientopt.Credential{AuthSource:"web_cache_db", Username:"web_cache_service",Password:"password" })
 		client, err := mongo.NewClientWithOptions("mongodb://web_cache_service@127.0.0.1:27017/web_cache_db",option)
@@ -56,19 +65,23 @@ func Initialize(ChCapacity uint8) (diskClient DC, err error) {
 		collection = client.Database("web_cache_db").Collection("pages")
 		indexModel := mongo.IndexModel{ Keys:bson.NewDocument(bson.EC.String("url", "text")), Options: mongo.NewIndexOptionsBuilder().Unique(true).Build()}
                 collection.Indexes().CreateOne(context.Background(), indexModel)
-                chCapacity = ChCapacity
-                pageCh = make(chan Page, ChCapacity)
+                cacheCapacity = CacheCapacity
+                pageCh = make(chan Page, cacheCapacity)
                 initFlag = true
 		diskClient = DiskClient{}
                 return diskClient, nil
         } else {
-                return nil, errors.New("Mutiple invocations on Initialize not allowed")
+        	    // pass already initialized diskClient
+                return diskClient, nil
         }
 }
 
 func (dc DiskClient) AddPage(page Page) (flag int) {
 	docs := bson.NewDocument(
                                 bson.EC.String("url", page.Url),
+                                bson.EC.Int64("size", page.Size),
+                                bson.EC.Boolean("safe", page.Safe),
+                                bson.EC.Int64("timesUSed", page.TimesUsed),
                                 bson.EC.Int64("timestamp", page.Timestamp),
                                 bson.EC.Array("images", toBsonArray(page.Images)),
                                 bson.EC.Array("links", toBsonArray(page.Links)),
@@ -102,10 +115,28 @@ func (dc DiskClient) DeletePage(url string) (flag int){
 	return 1
 }
 
-func (dc DiskClient) GetPage(url string) (p Page, err error){
+func (dc DiskClient) GetPage(url string) (pa Page, err error){
 	result := Page{}
 	err = collection.FindOne(context.Background(), bson.NewDocument(bson.EC.String("url", url))).Decode(&result)
         if err != nil {
+		fmt.Println(err)
+		return result, err
+	}
+	return result , nil
+}
+
+// TODO: test this implementation of getting all pages
+func (dc DiskClient) GetAllPages() (pa []Page, err error){
+	var result []Page
+	cursor, err := collection.Find(
+		context.Background(),
+		bson.NewDocument(
+			bson.EC.SubDocumentFromElements("pages",
+				bson.EC.ArrayFromElements("$all"),
+			),
+		))
+	cursor.Decode(&result)
+	if err != nil {
 		fmt.Println(err)
 		return result, err
 	}
@@ -128,4 +159,38 @@ func (dc DiskClient) RefreshPageTimestamp(url string) (timestamp int64, err erro
 	fmt.Println(result)
 	if err != nil {return -1,err}
 	return timestamp,nil
+}
+
+func (dc DiskClient) MarkSafe(url string) (err error){
+	result, err := collection.UpdateOne(
+		context.Background(),
+		bson.NewDocument(
+			bson.EC.String("url", url),
+		),
+		bson.NewDocument(
+			bson.EC.SubDocumentFromElements("$set",
+				bson.EC.Boolean("safe", true),
+			),
+		),
+	)
+	fmt.Println(result)
+	if err != nil {return err}
+	return nil
+}
+
+func (dc DiskClient) MarkUnsafe(url string) (err error){
+	result, err := collection.UpdateOne(
+		context.Background(),
+		bson.NewDocument(
+			bson.EC.String("url", url),
+		),
+		bson.NewDocument(
+			bson.EC.SubDocumentFromElements("$set",
+				bson.EC.Boolean("safe", false),
+			),
+		),
+	)
+	fmt.Println(result)
+	if err != nil {return err}
+	return nil
 }
