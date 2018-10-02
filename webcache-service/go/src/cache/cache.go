@@ -70,6 +70,14 @@ func (c Cache) InitializeCache(policy int, capacity int64, expiry int64) (err er
 	dc, err := diskclient.Initialize(cacheCapacity)
 	if err != nil {return err}
 
+	for url, site := range cacheTable {
+		if !site.Safe {
+			fmt.Println("IVAN PLS ITS NOT WORTH IT")
+
+			c.DeleteFromCache(url)
+		}
+	}
+
 	diskCache = dc
 
 // 	cacheLock.Unlock()
@@ -114,6 +122,7 @@ func (c Cache) DeleteFromCache(url string) {
 
 // 	cacheLock.Lock()
 // 	defer cacheLock.Unlock()
+	fmt.Println("DELETING NOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO")
 
 	diskCache.MarkUnsafe(url)
 
@@ -140,6 +149,7 @@ func (c Cache) CheckCache(url string) (avail bool, site diskclient.Page) {
 	fmt.Println(cacheTable[url])
 	if entry, ok := cacheTable[url]; ok {
 		if !entry.Safe || entry.Timestamp + expiryTime < int64(time.Now().UnixNano()) {
+			fmt.Println("MERCY ON US IVAN")
 			c.DeleteFromCache(url)
 			return false, diskclient.Page{}
 		}
@@ -151,9 +161,12 @@ func (c Cache) CheckCache(url string) (avail bool, site diskclient.Page) {
 func (c Cache) RemoveExpired() {
 	// TODO: lock here?
 	for url, site := range cacheTable {
+		fmt.Println(site.Timestamp)
+		fmt.Println(expiryTime)
+		fmt.Println(int64(time.Now().UnixNano()))
 		if site.Timestamp + expiryTime < int64(time.Now().UnixNano()) {
-			c.DeleteFromCache(url)
-		} else if !site.Safe {
+			fmt.Println("DONT DO THIS IVAN")
+
 			c.DeleteFromCache(url)
 		}
 	}
@@ -222,14 +235,15 @@ func (c Cache) ProcessRequest(w http.ResponseWriter, req *http.Request) {
 	avail, site := c.CheckCache("http://"+req.Host+req.URL.Path)
 	if avail {
 		// in cache, return page
-		updatedPage, err := c.UpdatePage("http://"+req.Host+req.URL.Path)
+		_, err := c.UpdatePage("http://"+req.Host+req.URL.Path)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusServiceUnavailable)
 			return
 		}
 		// TODO: Add header write
 		fmt.Println("result obtained from cache")
-		io.Copy(w, strings.NewReader(updatedPage.Html))
+		//io.Copy(w, strings.NewReader(updatedPage.Html))
+		io.Copy(w, strings.NewReader(cacheTable["http://"+req.Host+req.URL.Path].Html))
 		return
 	}
 	// not in memory
@@ -253,6 +267,9 @@ func (c Cache) ProcessRequest(w http.ResponseWriter, req *http.Request) {
 
 
 	completePage, err := pageScraper.ScrapePage(newPage)
+	completePage.Timestamp = newPage.Timestamp
+	completePage.TimesUsed = newPage.TimesUsed
+
 	fmt.Println("page scraped")
 	if err != nil {
 		fmt.Println("error 2")
