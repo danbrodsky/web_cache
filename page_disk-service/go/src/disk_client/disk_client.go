@@ -1,4 +1,4 @@
-package diskclient
+package disk_client
 
 import (
 	"fmt"
@@ -16,6 +16,7 @@ type DiskClient struct {
 var (
 	initFlag = false
 	cacheCapacity int64
+	pageCh chan Page
 	collection *mongo.Collection
 	diskClient DiskClient
 )
@@ -65,6 +66,7 @@ func Initialize(CacheCapacity int64) (client DC, err error) {
 		indexModel := mongo.IndexModel{ Keys:bson.NewDocument(bson.EC.String("url", "text")), Options: mongo.NewIndexOptionsBuilder().Unique(true).Build()}
                 collection.Indexes().CreateOne(context.Background(), indexModel)
                 cacheCapacity = CacheCapacity
+                pageCh = make(chan Page, cacheCapacity)
                 initFlag = true
 		diskClient = DiskClient{}
                 return diskClient, nil

@@ -10,7 +10,7 @@ import (
     "io/ioutil"
     "net/http"
     "strings"
-    "diskclient"
+    "../diskclient"
     "sync"
 )
 

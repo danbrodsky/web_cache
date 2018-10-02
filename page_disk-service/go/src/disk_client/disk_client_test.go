@@ -1,4 +1,4 @@
-package diskclient
+package disk_client
 
 import (
 	"testing"
@@ -12,15 +12,15 @@ var (
 )
 
 func TestInitialize(t *testing.T) {
-        var cacheCapacity int64 = 128
+        var chCapacity uint8 = 128
         var err error = nil
-        dc, err = Initialize(cacheCapacity)
+        dc, err = Initialize(chCapacity)
         if err != nil {
                 t.Errorf("%+v", err)
         }
-        _,  err = Initialize(cacheCapacity)
-        if err != nil {
-                t.Errorf("")
+        _,  err = Initialize(chCapacity)
+        if err == nil {
+                t.Errorf("error should of occered when Initialized is called again")
         }
 }
 
