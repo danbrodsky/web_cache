@@ -135,7 +135,6 @@ func (dc DiskClient) GetAllPages() (pa []Page, err error){
 
 		result = append(result, elem)
 	}
-	fmt.Println(result)
 	if err != nil {
 		fmt.Println(err)
 		return nil, err

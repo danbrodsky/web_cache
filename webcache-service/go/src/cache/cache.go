@@ -11,7 +11,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unsafe"
 )
 
 type Cache struct {
@@ -221,7 +220,7 @@ func getPageSize(p diskclient.Page) (int64) {
 		fi, _ := os.Stat(s)
 		size += fi.Size()
 	}
-	size += int64(unsafe.Sizeof(p.Html))
+	size += int64(len(p.Html))
 
 	return size
 }
@@ -291,23 +290,27 @@ func (c Cache) ProcessRequest(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 		return
 	}
-
 	cacheSize += completePage.Size
+
+	site = completePage
 	// TODO: add check in parser for page too large for cache to be returned immediately
 	// TODO: update cache capacity
-	if c.RemoveExpired(); cacheCapacity > cacheSize {
+	if c.RemoveExpired(); cacheCapacity < cacheSize {
+		fmt.Println("capacity exceeded")
 		if cachePolicy == 0 {
 			err := c.LRU(site)
 			if err != nil {
-				// fmt.Println("error 5")
-				http.Error(w, err.Error(), http.StatusServiceUnavailable)
+				// cache too small, return page
+				fmt.Println("cache too small")
+				io.Copy(w, strings.NewReader(completePage.Html))
 				return
 			}
 		} else {
 			err := c.LFU(site)
 			if err != nil {
-				// fmt.Println("error 6")
-				http.Error(w, err.Error(), http.StatusServiceUnavailable)
+				// cache too small, return page
+				fmt.Println("cache too small")
+				io.Copy(w, strings.NewReader(completePage.Html))
 				return
 			}
 		}
@@ -330,12 +333,12 @@ func (c Cache) ProcessRequest(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 		return
 	}
-
 	fmt.Println("result obtained first time")
-	io.Copy(w, strings.NewReader(cacheTable[url].Html))
+	io.Copy(w, strings.NewReader(completePage.Html))
 	return
 }
 func (c Cache) LRU(site diskclient.Page) (error) {
+	fmt.Println(site.Size)
 	if cacheCapacity < site.Size {
 		return errors.New("size of page exceeds size of cache")
 	}
