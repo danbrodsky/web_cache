@@ -61,9 +61,9 @@ func Initialize(CacheCapacity int64) (client DC, err error) {
 		}
 		if err != nil { fmt.Println(err) }
 		err = client.Connect(context.TODO())
-		collection = client.Database("web_cache_db").Collection("pages")
-		indexModel := mongo.IndexModel{ Keys:bson.NewDocument(bson.EC.String("url", "text")), Options: mongo.NewIndexOptionsBuilder().Unique(true).Build()}
-                collection.Indexes().CreateOne(context.Background(), indexModel)
+		collection = client.Database("web_cache_db").Collection("table")
+		//indexModel := mongo.IndexModel{ Keys:bson.NewDocument(bson.EC.String("url", "text")), Options: mongo.NewIndexOptionsBuilder().Unique(true).Build()}
+        //        collection.Indexes().CreateOne(context.Background(), indexModel)
                 cacheCapacity = CacheCapacity
                 initFlag = true
 		diskClient = DiskClient{}
@@ -75,6 +75,8 @@ func Initialize(CacheCapacity int64) (client DC, err error) {
 }
 
 func (dc DiskClient) AddPage(page Page) (flag int) {
+	fmt.Println("add url")
+	fmt.Println(page.Url)
 	docs := bson.NewDocument(
                                 bson.EC.String("url", page.Url),
                                 bson.EC.Int64("size", page.Size),
@@ -104,11 +106,15 @@ func toBsonArray(arr []string) (bsonArr *(bson.Array)){
 }
 
 func (dc DiskClient) DeletePage(url string) (flag int){
-	res ,err := collection.DeleteOne(context.Background(), bson.NewDocument(bson.EC.String("url", url)))
-        if err != nil {
+	fmt.Println("delete url")
+	fmt.Println(url)
+	res, err := collection.DeleteMany(context.Background(), bson.NewDocument(bson.EC.String("url", url), ),)
+	if err != nil {
 		fmt.Println(err)
 		return -1
-	} else if res.DeletedCount == 0 {
+	}
+	if res.DeletedCount == 0 {
+		fmt.Println("nothing to delete")
 		return -1
 	}
 	return 1

@@ -60,7 +60,7 @@ func (c Cache) InitializeCache(policy int, capacity int64, expiry int64) (err er
 	}
 	initFlag = true
 
-// 	cacheLock.Lock()
+   	cacheLock.Lock()
 
 	cachePolicy = policy
 	cacheCapacity = capacity
@@ -71,16 +71,14 @@ func (c Cache) InitializeCache(policy int, capacity int64, expiry int64) (err er
 
 	for url, site := range cacheTable {
 		if !site.Safe {
-			// fmt.Println("IVAN PLS ITS NOT WORTH IT")
-
 			c.DeleteFromCache(url)
 		}
 	}
 
 	diskCache = dc
 
-// 	cacheLock.Unlock()
-	fmt.Println("loading disk from cache")
+   	cacheLock.Unlock()
+
 	err = c.LoadCacheFromDisk()
 	if err != nil {return err}
 	return nil
@@ -89,8 +87,8 @@ func (c Cache) InitializeCache(policy int, capacity int64, expiry int64) (err er
 // loads cache from disk
 func (c Cache) LoadCacheFromDisk() (err error){
 
-// 	cacheLock.Lock()
-// 	defer cacheLock.Unlock()
+   	cacheLock.Lock()
+   	defer cacheLock.Unlock()
 
 	cache, err := diskCache.GetAllPages()
 	if err != nil {
@@ -99,6 +97,7 @@ func (c Cache) LoadCacheFromDisk() (err error){
 	for _, page := range cache {
 		cacheTable[page.Url] = &page
 	}
+	fmt.Println("cache loaded from disk")
 
 	return nil
 }
@@ -106,8 +105,8 @@ func (c Cache) LoadCacheFromDisk() (err error){
 // saves cache to disk, set as unsafe
 func (c Cache) WritePageToDisk(url string) (p diskclient.Page, err error){
 
-// 	cacheLock.Lock()
-// 	defer cacheLock.Unlock()
+   	cacheLock.Lock()
+   	defer cacheLock.Unlock()
 
 	cacheTable[url].Safe = false
 
@@ -120,9 +119,9 @@ func (c Cache) WritePageToDisk(url string) (p diskclient.Page, err error){
 
 func (c Cache) DeleteFromCache(url string) {
 
-// 	cacheLock.Lock()
-// 	defer cacheLock.Unlock()
-	// fmt.Println("DELETING NOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO")
+   	cacheLock.Lock()
+   	defer cacheLock.Unlock()
+
 
 	diskCache.MarkUnsafe(url)
 
@@ -135,8 +134,8 @@ func (c Cache) DeleteFromCache(url string) {
 	for _, s := range cacheTable[url].Scripts {
 		os.Remove(resEnv + s)
 	}
-	fmt.Println("removed url size")
-	fmt.Println(cacheTable[url].Size)
+
+
 	cacheSize -= cacheTable[url].Size
 
 	delete(cacheTable,url)
@@ -147,7 +146,7 @@ func (c Cache) DeleteFromCache(url string) {
 func (c Cache) CheckCache(url string) (avail bool, site diskclient.Page) {
 	// TODO: lock here?
 	// fmt.Println("checking cache for " + url)
-	// fmt.Println(cacheTable)
+
 	if entry, ok := cacheTable[url]; ok {
 		if !entry.Safe || entry.Timestamp + expiryTime < int64(time.Now().UnixNano()) {
 			c.DeleteFromCache(url)
@@ -161,11 +160,11 @@ func (c Cache) CheckCache(url string) (avail bool, site diskclient.Page) {
 func (c Cache) RemoveExpired() {
 	// TODO: lock here?
 	for url, site := range cacheTable {
-		// fmt.Println(site.Timestamp)
-		// fmt.Println(expiryTime)
-		// fmt.Println(int64(time.Now().UnixNano()))
+
+
+
 		if site.Timestamp + expiryTime < int64(time.Now().UnixNano()) {
-			// fmt.Println("DONT DO THIS IVAN")
+
 
 			c.DeleteFromCache(url)
 		}
@@ -173,12 +172,13 @@ func (c Cache) RemoveExpired() {
 }
 
 func (c Cache) UpdatePage(url string) (p diskclient.Page, err error){
-// 	cacheLock.Lock()
+   	cacheLock.Lock()
 
 	cacheTable[url].Timestamp = int64(time.Now().UnixNano())
 	cacheTable[url].TimesUsed += 1
 
-// 	cacheLock.Unlock()
+   	cacheLock.Unlock()
+
 	p, err = c.WritePageToDisk(url)
 	if err != nil {
 		return diskclient.Page{}, err
@@ -194,13 +194,13 @@ func (c Cache) UpdatePage(url string) (p diskclient.Page, err error){
 }
 
 func changePageToSafe(page diskclient.Page) (p diskclient.Page, err error) {
-// 	cacheLock.Lock()
+   	cacheLock.Lock()
 	err = diskCache.MarkSafe(page.Url)
 	if err != nil {
 		return diskclient.Page{}, err
 	}
 	cacheTable[page.Url].Safe = true
-// 	cacheLock.Unlock()
+   	cacheLock.Unlock()
 
 	return p, nil
 }
@@ -244,6 +244,7 @@ func (c Cache) createNewPage(url string) (page diskclient.Page, err error) {
 	// TODO: lock here
 	cacheTable[url] = &newPage
 	// write stub page in for now
+
 	newPage, err = c.WritePageToDisk(url)
 	if err != nil {
 		return diskclient.Page{}, err
@@ -292,12 +293,6 @@ func (c Cache) ProcessRequest(w http.ResponseWriter, req *http.Request) {
 	}
 	cacheSize += completePage.Size
 
-	// TODO: add check in parser for page too large for cache to be returned immediately
-	// TODO: update cache capacity
-
-	fmt.Println(cacheCapacity)
-	fmt.Println(completePage.Size)
-	fmt.Println(cacheSize)
 	if c.RemoveExpired(); cacheCapacity < cacheSize {
 		fmt.Println("capacity exceeded")
 		if cachePolicy == 0 {
@@ -309,7 +304,7 @@ func (c Cache) ProcessRequest(w http.ResponseWriter, req *http.Request) {
 				return
 			}
 		} else {
-			fmt.Println("running policy")
+
 			err := c.LFU(completePage)
 			if err != nil {
 				// cache too small, return page
@@ -322,10 +317,10 @@ func (c Cache) ProcessRequest(w http.ResponseWriter, req *http.Request) {
 
 	// write page in now that there's space
 	cacheTable[url] = &completePage
-	// fmt.Println("page resources loaded")
+
 	completePage, err = c.WritePageToDisk(url)
 	if err != nil {
-		// fmt.Println("error 3")
+
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 		return
 	}
@@ -333,7 +328,7 @@ func (c Cache) ProcessRequest(w http.ResponseWriter, req *http.Request) {
 	changePageToSafe(completePage)
 	// fmt.Println("page written to disk")
 	if err != nil {
-		// fmt.Println("error 4")
+
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 		return
 	}
@@ -342,7 +337,7 @@ func (c Cache) ProcessRequest(w http.ResponseWriter, req *http.Request) {
 	return
 }
 func (c Cache) LRU(site diskclient.Page) (error) {
-	fmt.Println(site.Size)
+
 	if cacheCapacity < site.Size {
 		cacheSize -= site.Size
 		return errors.New("size of page exceeds size of cache")
@@ -363,8 +358,8 @@ func (c Cache) LRU(site diskclient.Page) (error) {
 }
 
 func (c Cache) LFU(site diskclient.Page) (error) {
-	fmt.Println(cacheCapacity)
-	fmt.Println(site.Size)
+
+
 	if cacheCapacity < site.Size {
 		cacheSize -= site.Size
 		return errors.New("size of page exceeds size of cache")
