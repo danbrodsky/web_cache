@@ -127,17 +127,18 @@ func (dc DiskClient) GetPage(url string) (pa Page, err error){
 // TODO: test this implementation of getting all pages
 func (dc DiskClient) GetAllPages() (pa []Page, err error){
 	var result []Page
-	cursor, err := collection.Find(
-		context.Background(),
-		bson.NewDocument(
-			bson.EC.SubDocumentFromElements("pages",
-				bson.EC.ArrayFromElements("$all"),
-			),
-		))
-	cursor.Decode(&result)
+	cursor, err := collection.Find(context.Background(),nil)
+	for cursor.Next(context.Background()) {
+		elem := Page{}
+		err := cursor.Decode(&elem)
+		if err != nil { return nil, err}
+
+		result = append(result, elem)
+	}
+	fmt.Println(result)
 	if err != nil {
 		fmt.Println(err)
-		return result, err
+		return nil, err
 	}
 	return result , nil
 }
