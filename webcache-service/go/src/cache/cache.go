@@ -49,7 +49,7 @@ var (
 	cacheCapacity int64
 	expiryTime int64
 
-	resEnv = ""
+	resEnv = "../res/"
 
 	diskCache diskclient.DC
 
@@ -135,7 +135,9 @@ func (c Cache) DeleteFromCache(url string) {
 // check for url data in cache, return page if present
 func (c Cache) CheckCache(url string) (avail bool, site diskclient.Page) {
 	// TODO: lock here?
-
+	fmt.Println("checking cache for " + url)
+	fmt.Println(cacheTable)
+	fmt.Println(cacheTable[url])
 	if entry, ok := cacheTable[url]; ok {
 		if !entry.Safe || entry.Timestamp + expiryTime < int64(time.Now().UnixNano()) {
 			c.DeleteFromCache(url)
@@ -212,7 +214,11 @@ func getPageSize(p diskclient.Page) (int64) {
 
 // complete new client request
 func (c Cache) ProcessRequest(w http.ResponseWriter, req *http.Request) {
-
+	if strings.Contains("http://"+req.Host+req.URL.Path, "firefox") ||
+		strings.Contains("http://"+req.Host+req.URL.Path, "mozilla") ||
+		strings.Contains("http://"+req.Host+req.URL.Path, "google"){
+		return
+	}
 	avail, site := c.CheckCache("http://"+req.Host+req.URL.Path)
 	if avail {
 		// in cache, return page
@@ -222,6 +228,7 @@ func (c Cache) ProcessRequest(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 		// TODO: Add header write
+		fmt.Println("result obtained from cache")
 		io.Copy(w, strings.NewReader(updatedPage.Html))
 		return
 	}
@@ -295,7 +302,7 @@ func (c Cache) ProcessRequest(w http.ResponseWriter, req *http.Request) {
 	}
 
 	// TODO: return to client
-	fmt.Println(cacheTable["http://"+req.Host+req.URL.Path].Html)
+	fmt.Println("result obtained first time")
 	io.Copy(w, strings.NewReader(cacheTable["http://"+req.Host+req.URL.Path].Html))
 	return
 }

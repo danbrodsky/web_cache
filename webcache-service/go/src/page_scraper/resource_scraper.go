@@ -38,7 +38,7 @@ func (rs ResourceScraper) ScrapeResource(url string) (rn string, e error){
     path = filepath.Join(rootdir,path)
     fmt.Println(path)
     os.MkdirAll(path, os.ModePerm)
-    rn,err := DownloadFile(path, ext, url)
+    rn,err := DownloadFile("../res/", ext, url)
     if err != nil {
         return "",err
     }
