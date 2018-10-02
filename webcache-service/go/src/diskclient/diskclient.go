@@ -79,7 +79,7 @@ func (dc DiskClient) AddPage(page Page) (flag int) {
                                 bson.EC.String("url", page.Url),
                                 bson.EC.Int64("size", page.Size),
                                 bson.EC.Boolean("safe", page.Safe),
-                                bson.EC.Int64("timesUSed", page.TimesUsed),
+                                bson.EC.Int64("timesUsed", page.TimesUsed),
                                 bson.EC.Int64("timestamp", page.Timestamp),
                                 bson.EC.Array("images", toBsonArray(page.Images)),
                                 bson.EC.Array("links", toBsonArray(page.Links)),
@@ -88,6 +88,7 @@ func (dc DiskClient) AddPage(page Page) (flag int) {
                         )
 	_, err := collection.InsertOne(context.Background(), docs)
 	if err != nil {
+		fmt.Println(page.Url)
 		fmt.Println(err)
 		return -1
 	}

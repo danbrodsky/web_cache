@@ -185,6 +185,7 @@ func renderNode(n *html.Node) string {
 func GetHtml(url string) (text string, err error) {
     var bytes []byte
     resp, err := http.Get(url)
+    fmt.Println(url)
     if err != nil {
         fmt.Println("There seems to ben an error with the page")
     }
