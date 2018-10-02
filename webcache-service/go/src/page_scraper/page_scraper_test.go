@@ -14,7 +14,7 @@ var (
 func TestNewPageScraperAndExecute(t *testing.T) {
 	h := os.Getenv("DEPLOY_HOST_IP") + ":" + os.Getenv("DEPLOY_HOST_PORT") + "/" + os.Getenv("RES_ENTRYPOINT")
 	fmt.Println("source path: " + h)
-	ps = NewPageScraper("http://vaastavanand.com/")
+	ps = NewPageScraper("http://vaastavanand.com/favicon.ico")
 	_= ps
 	page, err := ps.GetPage()
 	fmt.Println(page.Links)

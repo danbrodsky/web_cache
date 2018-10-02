@@ -1,8 +1,8 @@
 package cache
 
 import (
-	"../diskclient"
-	"../page_scraper"
+	"diskclient"
+	"page_scraper"
 	"errors"
 	"fmt"
 	"io"
@@ -209,15 +209,15 @@ func getPageSize(p diskclient.Page) (int64) {
 
 	var size int64 = 0
 	for _, i := range p.Images {
-		fi, _ := os.Stat(i)
+		fi, _ := os.Stat( "/root" + i)
 		size += fi.Size()
 	}
 	for _, l := range p.Links {
-		fi, _ := os.Stat(l)
+		fi, _ := os.Stat( "/root" + l)
 		size += fi.Size()
 	}
 	for _, s := range p.Scripts {
-		fi, _ := os.Stat(s)
+		fi, _ := os.Stat( "/root" + s)
 		size += fi.Size()
 	}
 	size += int64(len(p.Html))

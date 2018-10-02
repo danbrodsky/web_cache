@@ -38,7 +38,7 @@ func (rs ResourceScraper) ScrapeResource(url string) (rn string, e error){
     path = filepath.Join(rootdir,path)
     fmt.Println(path)
     os.MkdirAll(path, os.ModePerm)
-    rn,err := DownloadFile("../res/", ext, url)
+    rn,err := DownloadFile(path, ext, url)
     if err != nil {
         return "",err
     }
@@ -57,6 +57,7 @@ func DownloadFile(fp string, ext string, url string) (uri string, erro error) {
     defer resp.Body.Close()
     if resp.StatusCode == http.StatusOK {
         h := sha256.New()
+	fmt.Println(url)
         h.Write([]byte(url))
 	sha := base64.URLEncoding.EncodeToString(h.Sum(nil))
         uri = filepath.Join(fp, sha+ext)

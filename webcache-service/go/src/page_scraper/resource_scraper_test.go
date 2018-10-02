@@ -16,7 +16,7 @@ func TestInitialize(t *testing.T) {
 }
 
 func TestScrapeFile(t *testing.T) {
-	_,err := rs.ScrapeResource("https://www.cs.ubc.ca/~wolf/pics/fullsize2.jpg")
+	_,err := rs.ScrapeResource("http://vaastavanand.com/favicon.ico")
 	if err != nil {
                 t.Errorf("%+v", err)
         }

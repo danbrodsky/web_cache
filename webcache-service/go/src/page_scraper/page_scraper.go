@@ -10,7 +10,7 @@ import (
     "io/ioutil"
     "net/http"
     "strings"
-    "../diskclient"
+    "diskclient"
     "sync"
 )
 
@@ -111,6 +111,7 @@ func scrapeHtml(doc *html.Node, page *diskclient.Page) {
                 res := getSrc(n.Attr)
                 if(res != nil){
                         ref,err := scrapeResource(formatUrl(res.Val, page.Url))
+			fmt.Println(ref)
                         if err == nil{
                                page.Images = append(page.Images, ref)
                                res.Val = HOSTPORT + ref
@@ -125,7 +126,7 @@ func scrapeHtml(doc *html.Node, page *diskclient.Page) {
     }
     wg.Add(1)
     go f(doc)
-    //fmt.Println(renderNode(doc))
+  //  fmt.Println(renderNode(doc))
     wg.Wait()
     fmt.Println("done!")
     page.Html = renderNode(doc)
@@ -199,7 +200,7 @@ func GetHtml(url string) (text string, err error) {
 }
 
 func (ps PageScraper) GetPage() (page diskclient.Page, err error) {
-    HOSTPORT = os.Getenv("DEPLOY_HOST_IP") + ":" + os.Getenv("DEPLOY_HOST_PORT") + "/"
+    HOSTPORT = "http://" + os.Getenv("DEPLOY_HOST_IP") + ":" + "8000"
     if(len(HOSTPORT) < 1){
 	return page,errors.New("host port environment variables not set")
     }
@@ -224,7 +225,7 @@ func (ps PageScraper) GetPage() (page diskclient.Page, err error) {
 }
 
 func (ps PageScraper) ScrapePage(page diskclient.Page) (ScrapedPage diskclient.Page, err error){
-    HOSTPORT = os.Getenv("DEPLOY_HOST_IP") + ":" + os.Getenv("DEPLOY_HOST_PORT") + "/"
+    HOSTPORT = "http://" + os.Getenv("DEPLOY_HOST_IP") + ":" + "8000"
     if(len(HOSTPORT) < 1){
         return page,errors.New("host port environment variables not set")
     }
