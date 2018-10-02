@@ -20,8 +20,8 @@ type PageScraper struct {
 }
 
 type PS interface {
-	// gets page and caches resources on disk for tags html link, script, img and updates the tags according to it
-	Execute() (page diskclient.Page, err error)
+	GetPage() (page diskclient.Page, err error)
+        ScrapePage(page diskclient.Page) (ScrapedPage diskclient.Page, err error)
 }
 
 var (
@@ -34,38 +34,88 @@ func NewPageScraper(url string) (pageScraper PS) {
 }
 
 
-func getBody(doc *html.Node, page *diskclient.Page) {
+func getHtml(doc *html.Node, page *diskclient.Page) {
+    var f func(*html.Node)
+    //var wg sync.WaitGroup
+    f = func(n *html.Node) {
+        //defer wg.Done()
+        if n.Type == html.ElementNode && n.Data == "link" {
+                res := getHref(n.Attr)
+		if(res != nil){
+			url := formatUrl(res.Val, page.Url)
+                        //ref,err := scrapeResource(formatUrl(res.Val, page.Url))
+                        //if err == nil{
+			        page.Links = append(page.Links, url)
+                                //res.Val = HOSTPORT + ref
+                        //}
+		}
+        } else if n.Type == html.ElementNode && n.Data == "script" {
+                res := getSrc(n.Attr)
+		if(res != nil){
+			url := formatUrl(res.Val, page.Url)
+                        //ref,err := scrapeResource(formatUrl(res.Val, page.Url))
+                        //if err == nil{
+			        page.Scripts = append(page.Scripts, url)
+                                //res.Val = HOSTPORT + ref
+                        //}
+		}
+        } else if n.Type == html.ElementNode && n.Data == "img" {
+		res := getSrc(n.Attr)
+		if(res != nil){
+			url := formatUrl(res.Val, page.Url)
+		        //ref,err := scrapeResource(formatUrl(res.Val, page.Url))
+		        //if err == nil{
+			       page.Images = append(page.Images, url)
+			       //res.Val = HOSTPORT + ref
+		        //}
+		}
+        }
+
+        for c := n.FirstChild; c != nil; c = c.NextSibling {
+            //wg.Add(1)
+            f(c)
+        }
+    }
+    //wg.Add(1)
+    f(doc)
+    //fmt.Println(renderNode(doc))
+    //wg.Wait()
+    fmt.Println("done!")
+    page.Html = renderNode(doc)
+}
+
+func scrapeHtml(doc *html.Node, page *diskclient.Page) {
     var f func(*html.Node)
     var wg sync.WaitGroup
     f = func(n *html.Node) {
         defer wg.Done()
         if n.Type == html.ElementNode && n.Data == "link" {
                 res := getHref(n.Attr)
-		if(res != nil){
+                if(res != nil){
                         ref,err := scrapeResource(formatUrl(res.Val, page.Url))
                         if err == nil{
-			        page.Links = append(page.Links, ref)
+                                page.Links = append(page.Links, ref)
                                 res.Val = HOSTPORT + ref
                         }
-		}
+                }
         } else if n.Type == html.ElementNode && n.Data == "script" {
                 res := getSrc(n.Attr)
-		if(res != nil){
+                if(res != nil){
                         ref,err := scrapeResource(formatUrl(res.Val, page.Url))
                         if err == nil{
-			        page.Scripts = append(page.Scripts, ref)
+                                page.Scripts = append(page.Scripts, ref)
                                 res.Val = HOSTPORT + ref
                         }
-		}
+                }
         } else if n.Type == html.ElementNode && n.Data == "img" {
-		res := getSrc(n.Attr)
-		if(res != nil){
-		        ref,err := scrapeResource(formatUrl(res.Val, page.Url))
-		        if err == nil{
-			       page.Images = append(page.Images, ref)
-			       res.Val = HOSTPORT + ref
-		        }
-		}
+                res := getSrc(n.Attr)
+                if(res != nil){
+                        ref,err := scrapeResource(formatUrl(res.Val, page.Url))
+                        if err == nil{
+                               page.Images = append(page.Images, ref)
+                               res.Val = HOSTPORT + ref
+                        }
+                }
         }
 
         for c := n.FirstChild; c != nil; c = c.NextSibling {
@@ -147,8 +197,8 @@ func GetHtml(url string) (text string, err error) {
     return text, err
 }
 
-func (ps PageScraper) Execute() (page diskclient.Page, err error) {
-    HOSTPORT = "http://" + os.Getenv("DEPLOY_HOST_IP") + ":" + os.Getenv("DEPLOY_HOST_PORT")
+func (ps PageScraper) GetPage() (page diskclient.Page, err error) {
+    HOSTPORT = os.Getenv("DEPLOY_HOST_IP") + ":" + os.Getenv("DEPLOY_HOST_PORT") + "/"
     if(len(HOSTPORT) < 1){
 	return page,errors.New("host port environment variables not set")
     }
@@ -159,11 +209,30 @@ func (ps PageScraper) Execute() (page diskclient.Page, err error) {
     }
 
     page = diskclient.Page{ Url: ps.Url}
+    //fmt.Println(strings.NewReader(htmlSrc))
     doc, _ := html.Parse(strings.NewReader(htmlSrc))
-    getBody(doc, &page)
+    getHtml(doc, &page)
     if err != nil {
         return page,err
     }
+
+    //page2 := diskclient.Page{ Url: ps.Url}
+    //doc2,_ := html.Parse(strings.NewReader(page.Html))
+    //getBody(doc2, &page2)
     return page,nil
+}
+
+func (ps PageScraper) ScrapePage(page diskclient.Page) (ScrapedPage diskclient.Page, err error){
+    HOSTPORT = os.Getenv("DEPLOY_HOST_IP") + ":" + os.Getenv("DEPLOY_HOST_PORT") + "/"
+    if(len(HOSTPORT) < 1){
+        return page,errors.New("host port environment variables not set")
+    }
+    ScrapedPage = diskclient.Page{ Url: ps.Url}
+    doc ,_ := html.Parse(strings.NewReader(page.Html))
+    scrapeHtml(doc, &ScrapedPage)
+    if err != nil {
+        return ScrapedPage,err
+    }
+    return ScrapedPage,err
 }
 

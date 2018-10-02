@@ -16,7 +16,7 @@ func TestNewPageScraperAndExecute(t *testing.T) {
 	fmt.Println("source path: " + h)
 	ps = NewPageScraper("http://vaastavanand.com/")
 	_= ps
-	page, err := ps.Execute()
+	page, err := ps.GetPage()
 	fmt.Println(page.Links)
 	fmt.Println(page.Scripts)
 	fmt.Println(page.Images)
@@ -24,5 +24,10 @@ func TestNewPageScraperAndExecute(t *testing.T) {
 	if err != nil {
                 t.Errorf("%+v", err)
         }
+        scrapedPage, err := ps.ScrapePage(page)
+	fmt.Println(scrapedPage.Html)
+        fmt.Println(scrapedPage.Links)
+        fmt.Println(scrapedPage.Scripts)
+        fmt.Println(scrapedPage.Images)
 }
 
