@@ -2,6 +2,7 @@ package cache
 
 import (
 	"../../../../page_disk-service/go/src/disk_client"
+	"../../../../page_scraper-service/page_scraper"
 	"errors"
 	"io"
 	"net/http"
@@ -89,7 +90,7 @@ func (c Cache) LoadCacheFromDisk() (err error){
 	return nil
 }
 
-// saves cache to disk
+// saves cache to disk, set as unsafe
 func (c Cache) WritePageToDisk(url string) (p disk_client.Page, err error){
 
 	cacheLock.Lock()
@@ -102,13 +103,6 @@ func (c Cache) WritePageToDisk(url string) (p disk_client.Page, err error){
 
 	diskCache.AddPage(*cacheTable[url])
 
-	// successful write, mark as safe
-	err = diskCache.MarkSafe(url)
-
-	if err != nil {
-		return disk_client.Page{}, err
-	}
-	cacheTable[url].Safe = true
 	return *cacheTable[url], nil
 }
 
@@ -143,6 +137,8 @@ func (c Cache) RemoveExpired() {
 	for url, site := range cacheTable {
 		if site.Timestamp + expiryTime < int64(time.Now().UnixNano()) {
 			c.DeleteFromCache(url)
+		} else if !site.Safe {
+			c.DeleteFromCache(url)
 		}
 	}
 }
@@ -154,8 +150,30 @@ func (c Cache) UpdatePage(url string) (p disk_client.Page, err error){
 	cacheTable[url].TimesUsed += 1
 
 	cacheLock.Unlock()
-	return c.WritePageToDisk(url)
+	p, err = c.WritePageToDisk(url)
+	if err != nil {
+		return disk_client.Page{}, err
+	}
+	// successful write, mark as safe
+	p, err = changePageToSafe(p)
+	if err != nil {
+		return disk_client.Page{}, err
+	}
 
+	return p, nil
+
+}
+
+func changePageToSafe(page disk_client.Page) (p disk_client.Page, err error) {
+	cacheLock.Lock()
+	err = diskCache.MarkSafe(page.Url)
+	if err != nil {
+		return disk_client.Page{}, err
+	}
+	cacheTable[page.Url].Safe = true
+	cacheLock.Unlock()
+
+	return p, nil
 }
 
 // complete new client request
@@ -175,15 +193,29 @@ func (c Cache) ProcessRequest(w http.ResponseWriter, req *http.Request) {
 	}
 	// not in memory
 	// TODO: send request to parser
-	//pageScraper := page_scraper.NewPageScraper(req.Host+req.URL.Path)
-	//newPage, err := pageScraper.Execute()
-	//if err != nil {
-	//	http.Error(w, err.Error(), http.StatusServiceUnavailable)
-	//	return
-	//}
-	//
-	//cacheLock.Lock()
-	//cacheTable[req.Host+req.URL.Path] = &newPage
+
+	pageScraper := page_scraper.NewPageScraper(req.Host+req.URL.Path)
+	newPage, err := pageScraper.Execute() // assume this gives page stub
+
+	// write stub page in for now
+	p, err := c.WritePageToDisk(req.Host+req.URL.Path)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+
+	// TODO: add call to function here for downloading resources for page
+
+	// successful write, mark as safe
+	changePageToSafe(p)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+
+	cacheLock.Lock()
+	cacheTable[req.Host+req.URL.Path] = &newPage
 
 	// TODO: add check in parser for page too large for cache to be returned immediately
 	// TODO: update cache capacity
@@ -203,7 +235,14 @@ func (c Cache) ProcessRequest(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 	// TODO: save in cacheTable
-	c.WritePageToDisk(req.Host+req.URL.Path)
+	p, err := c.WritePageToDisk(req.Host+req.URL.Path)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	// successful write, mark as safe
+	changePageToSafe(p)
+
 	// TODO: return to client
 	//io.Copy(w, strings.NewReader(cacheTable[req.Host+req.URL.Path].Html))
 	return

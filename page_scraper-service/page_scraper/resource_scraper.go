@@ -1,13 +1,13 @@
 package page_scraper
 
 import (
-    "crypto/sha256"
-    "encoding/base64"
     "errors"
-    "fmt"
     "io"
     "net/http"
+    "encoding/base64"
     "os"
+    "fmt"
+    "crypto/sha256"
     "path/filepath"
 )
 
