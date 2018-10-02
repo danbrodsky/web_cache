@@ -135,7 +135,9 @@ func (c Cache) DeleteFromCache(url string) {
 	for _, s := range cacheTable[url].Scripts {
 		os.Remove(resEnv + s)
 	}
-	cacheCapacity -= cacheTable[url].Size
+	fmt.Println("removed url size")
+	fmt.Println(cacheTable[url].Size)
+	cacheSize -= cacheTable[url].Size
 
 	delete(cacheTable,url)
 	diskCache.DeletePage(url)
@@ -146,10 +148,8 @@ func (c Cache) CheckCache(url string) (avail bool, site diskclient.Page) {
 	// TODO: lock here?
 	// fmt.Println("checking cache for " + url)
 	// fmt.Println(cacheTable)
-	// fmt.Println(cacheTable[url])
 	if entry, ok := cacheTable[url]; ok {
 		if !entry.Safe || entry.Timestamp + expiryTime < int64(time.Now().UnixNano()) {
-			// fmt.Println("MERCY ON US IVAN")
 			c.DeleteFromCache(url)
 			return false, diskclient.Page{}
 		}
@@ -270,7 +270,7 @@ func (c Cache) ProcessRequest(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	avail, site := c.CheckCache(url)
+	avail, _ := c.CheckCache(url)
 	if avail {
 		// in cache, return page
 		_, err := c.UpdatePage(url)
@@ -292,13 +292,16 @@ func (c Cache) ProcessRequest(w http.ResponseWriter, req *http.Request) {
 	}
 	cacheSize += completePage.Size
 
-	site = completePage
 	// TODO: add check in parser for page too large for cache to be returned immediately
 	// TODO: update cache capacity
+
+	fmt.Println(cacheCapacity)
+	fmt.Println(completePage.Size)
+	fmt.Println(cacheSize)
 	if c.RemoveExpired(); cacheCapacity < cacheSize {
 		fmt.Println("capacity exceeded")
 		if cachePolicy == 0 {
-			err := c.LRU(site)
+			err := c.LRU(completePage)
 			if err != nil {
 				// cache too small, return page
 				fmt.Println("cache too small")
@@ -306,7 +309,8 @@ func (c Cache) ProcessRequest(w http.ResponseWriter, req *http.Request) {
 				return
 			}
 		} else {
-			err := c.LFU(site)
+			fmt.Println("running policy")
+			err := c.LFU(completePage)
 			if err != nil {
 				// cache too small, return page
 				fmt.Println("cache too small")
@@ -340,10 +344,11 @@ func (c Cache) ProcessRequest(w http.ResponseWriter, req *http.Request) {
 func (c Cache) LRU(site diskclient.Page) (error) {
 	fmt.Println(site.Size)
 	if cacheCapacity < site.Size {
+		cacheSize -= site.Size
 		return errors.New("size of page exceeds size of cache")
 	}
 
-	for cacheCapacity - site.Size < 0 {
+	for cacheCapacity - cacheSize < 0 {
 		oldest := int64(time.Now().UnixNano())
 		oldestUrl := ""
 		for url, page := range cacheTable {
@@ -358,11 +363,14 @@ func (c Cache) LRU(site diskclient.Page) (error) {
 }
 
 func (c Cache) LFU(site diskclient.Page) (error) {
+	fmt.Println(cacheCapacity)
+	fmt.Println(site.Size)
 	if cacheCapacity < site.Size {
+		cacheSize -= site.Size
 		return errors.New("size of page exceeds size of cache")
 	}
 
-	for cacheCapacity - site.Size < 0 {
+	for cacheCapacity - cacheSize < 0 {
 		leastUsed := int64(10000)
 		leastUsedUrl := ""
 		for url, page := range cacheTable {
