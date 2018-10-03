@@ -1,6 +1,7 @@
 package diskclient
 
 import (
+	"os"
 	"fmt"
 	"github.com/mongodb/mongo-go-driver/bson"
 	"github.com/mongodb/mongo-go-driver/mongo"
@@ -61,7 +62,7 @@ func Initialize(CacheCapacity int64) (client DC, err error) {
 		}
 		if err != nil { fmt.Println(err) }
 		err = client.Connect(context.TODO())
-		collection = client.Database("web_cache_db").Collection("table")
+		collection = client.Database("web_cache_db").Collection(os.Getenv("DBCOL"))
 		//indexModel := mongo.IndexModel{ Keys:bson.NewDocument(bson.EC.String("url", "text")), Options: mongo.NewIndexOptionsBuilder().Unique(true).Build()}
         //        collection.Indexes().CreateOne(context.Background(), indexModel)
                 cacheCapacity = CacheCapacity

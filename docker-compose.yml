@@ -10,14 +10,15 @@ services:
       - mongodb
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./data:/root/res
+      - ./data:/tmp/res
     environment:
-      - RES_ROOT_DIR=/root/res
-      - RES_ENTRYPOINT=/res      
+      - RES_ROOT_DIR=/tmp
+      - RES_ENTRYPOINT=/res
       - DEPLOY_HOST_PORT=8888
-      - DEPLOY_HOST_IP=127.0.0.1
+      - DEPLOY_HOST_IP=40.78.62.75  # change!!
       - DATABASE_HOST=127.0.0.1
       - DATABASE_PORT=27017
+      - DBCOL=page_table
       - GOPATH=/root/go
       - PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/go/bin:/root/go/bin:/root/go/bin
 
@@ -32,6 +33,3 @@ services:
 volumes:
   db-data:
   db-config:
-
-
-

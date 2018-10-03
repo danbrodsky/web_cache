@@ -11,6 +11,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"crypto/sha256"
+	"path/filepath"
+        "encoding/base64"
 )
 
 type Cache struct {
@@ -47,6 +50,7 @@ var (
 	cacheSize int64
 	cacheCapacity int64
 	expiryTime int64
+	ROOTDIR string
 
 	resEnv = "../res/"
 
@@ -59,7 +63,7 @@ func (c Cache) InitializeCache(policy int, capacity int64, expiry int64) (err er
 		return errors.New("cache already initialized")
 	}
 	initFlag = true
-
+	ROOTDIR = os.Getenv("RES_ROOT_DIR")
    	cacheLock.Lock()
 
 	cachePolicy = policy
@@ -126,13 +130,16 @@ func (c Cache) DeleteFromCache(url string) {
 	diskCache.MarkUnsafe(url)
 
 	for _, i := range cacheTable[url].Images {
-		os.Remove(resEnv + i)
+		fmt.Println("deleting!!" + encodeUrlFilePath(i))
+		os.Remove(encodeUrlFilePath(i))
 	}
 	for _, l := range cacheTable[url].Links {
-		os.Remove(resEnv + l)
+		fmt.Println("deleting!!"  + encodeUrlFilePath(l))
+		os.Remove(encodeUrlFilePath(l))
 	}
 	for _, s := range cacheTable[url].Scripts {
-		os.Remove(resEnv + s)
+		fmt.Println("deleting!!"  + encodeUrlFilePath(s))
+		os.Remove(encodeUrlFilePath(s))
 	}
 
 
@@ -140,6 +147,20 @@ func (c Cache) DeleteFromCache(url string) {
 
 	delete(cacheTable,url)
 	diskCache.DeletePage(url)
+}
+
+func encodeUrlFilePath(uri string)(string){
+        if(strings.Contains(uri,"http")){
+		fmt.Println(uri)
+		h := sha256.New()
+		h.Write([]byte(uri))
+		sha := base64.URLEncoding.EncodeToString(h.Sum(nil))
+		if(len(filepath.Ext(uri)) <= 1){
+			return uri
+		}
+		return  ROOTDIR + os.Getenv("RES_ENTRYPOINT") + "/"+filepath.Ext(uri)[1:len(filepath.Ext(uri))] + "/" + sha + filepath.Ext(uri)
+	}
+        return  ROOTDIR + uri
 }
 
 // check for url data in cache, return page if present
@@ -206,18 +227,18 @@ func changePageToSafe(page diskclient.Page) (p diskclient.Page, err error) {
 }
 
 func getPageSize(p diskclient.Page) (int64) {
-
 	var size int64 = 0
 	for _, i := range p.Images {
-		fi, _ := os.Stat( "/root" + i)
+		fmt.Println("getting page size !!!!!!! " + encodeUrlFilePath(i))
+		fi, _ := os.Stat( encodeUrlFilePath(i))
 		size += fi.Size()
 	}
 	for _, l := range p.Links {
-		fi, _ := os.Stat( "/root" + l)
+		fi, _ := os.Stat( encodeUrlFilePath(l))
 		size += fi.Size()
 	}
 	for _, s := range p.Scripts {
-		fi, _ := os.Stat( "/root" + s)
+		fi, _ := os.Stat( encodeUrlFilePath(s))
 		size += fi.Size()
 	}
 	size += int64(len(p.Html))
@@ -292,6 +313,11 @@ func (c Cache) ProcessRequest(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	cacheSize += completePage.Size
+
+	fmt.Println("current cache size")
+	fmt.Println(cacheSize)
+	fmt.Println("current page size")
+	fmt.Println(completePage.Size)
 
 	if c.RemoveExpired(); cacheCapacity < cacheSize {
 		fmt.Println("capacity exceeded")

@@ -21,69 +21,33 @@ var (
 )
 
 
-func about_handler(w http.ResponseWriter, r *http.Request) {
-    // ABOUT SECTION HTML CODE
-    //page,_ := page_scraper.NewPageScraper("http://vaastavanand.com/").Execute()
-    //fmt.Fprintf(w, page.Html)
-}
 
 func handleHTTP(w http.ResponseWriter, req *http.Request) {
     isCached , _:= clientCache.CheckCache( "http://"+req.URL.Host + "/")
 
-    if(strings.Contains(req.URL.String(),"128.189.139.25" ) || strings.Contains(req.URL.String(),"127.0.0.1" )){
+    if(strings.Contains(req.URL.String(),os.Getenv("DEPLOY_HOST_IP")) || strings.Contains(req.URL.String(),"127.0.0.1" )){
 	fmt.Println(req.URL.String()+ "files")
 	http.StripPrefix("/res/", http.FileServer(http.Dir("/root/res"))).ServeHTTP(w,req)
 	fmt.Println("file request")
 	return
     } else if(isMasked(req.URL.String())){
-      //  fmt.Println(req.URL.String()+ " request masked")
+	handleFullProxy(w,req)
 	return
     } else if(len(filepath.Ext(req.URL.String())) > 1 && isCached){
 	oldPath := req.URL.Path
 	req.URL.Path = encodeUrlFilePath(req.URL.String())
-	if _, err := os.Stat("/root/res" + req.URL.Path); os.IsNotExist(err) {
+	if _, err := os.Stat(os.Getenv("RES_ROOT_DIR")+os.Getenv("RES_ENTRYPOINT") + req.URL.Path); os.IsNotExist(err) {
 		req.URL.Path = oldPath
 		fmt.Println(req.URL.String()+ " requesting to cache!!")
                 clientCache.ProcessRequest(w,req)
 	} else {
 		fmt.Println(req.URL.String()+ " requesting from files server")
-                http.FileServer(http.Dir("/root/res")).ServeHTTP(w,req)
+                http.FileServer(http.Dir(os.Getenv("RES_ROOT_DIR")+os.Getenv("RES_ENTRYPOINT"))).ServeHTTP(w,req)
 	}
 	return
     } else {
         fmt.Println(req.URL.String()+ " requesting to cache")
-        //resp, err := http.DefaultTransport.RoundTrip(req)
         clientCache.ProcessRequest(w,req)
-        //if err != nil {
-        //    http.Error(w, err.Error(), http.StatusServiceUnavailable)
-        //    return
-        //}
-        //fmt.Println(req.URL.String())
-        //var b bytes.Buffer
-        //scraper := page_scraper.NewPageScraper(req.URL.String())
-        //page,_ := scraper.GetPage()
-        //finalPage,_:= scraper.ScrapePage(page)
-        //gz := gzip.NewWriter(&b)
-        //if _, err := gz.Write([]byte(finalPage.Html)); err != nil {
-        //    panic(err)
-        //}
-    //if err := gz.Flush(); err != nil {
-    //    panic(err)
-    //}
-    //if err := gz.Close(); err != nil {
-    //    panic(err)
-    //}
-        //fmt.Fprintf(w, finalPage.Html)
-        //defer resp.Body.Close()
-    //copyHeader(w.Header(), resp.Header)
-    //w.WriteHeader(resp.StatusCode)
-    //w.Write(b.Bytes())
-    //body, _ := ioutil.ReadAll(resp.Body)
-    //bodyString := string(body)
-    //fmt.Println(bodyString)
-    //io.Copy(w, resp.Body)
-
-
     }
 
 }
@@ -126,11 +90,8 @@ func copyHeader(dst, src http.Header) {
 
 func main() {
     clientCache = cache.Cache{}
-    clientCache.InitializeCache(0,20000000000,100000000000)
-    http.HandleFunc("/about/", about_handler)
-    fs_entrypoint := os.Getenv("RES_ROOT_DIR")
-    fmt.Println(fs_entrypoint)
-    http.Handle("/res/", http.StripPrefix("/res/", http.FileServer(http.Dir("/root/res"))))
+    clientCache.InitializeCache(0,100000,10000000000)
+    http.Handle( os.Getenv("RES_ENTRYPOINT") +"/", http.StripPrefix( os.Getenv("RES_ENTRYPOINT") +"/", http.FileServer(http.Dir(os.Getenv("RES_ROOT_DIR")+os.Getenv("RES_ENTRYPOINT")))))
     //http.ListenAndServe(":" + "8000", nil)
     server := &http.Server{
                         Addr: ":8888",

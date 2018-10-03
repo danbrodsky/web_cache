@@ -29,13 +29,12 @@ func NewResourceScraper() (resourceScraper RS) {
 
 func (rs ResourceScraper) ScrapeResource(url string) (rn string, e error){
     //fileUrl := "https://www.cs.ubc.ca/~wolf/pics/fullsize2.jpg"
-    var rootdir = os.Getenv("RES_ROOT_DIR")
     var ext = filepath.Ext(url)
     if(len(ext) < 1){
 	return rn, errors.New("no extension found")
     }
     path := ext[1:len(ext)]
-    path = filepath.Join(rootdir,path)
+    path = filepath.Join(os.Getenv("RES_ROOT_DIR")+os.Getenv("RES_ENTRYPOINT"),path)
     fmt.Println(path)
     os.MkdirAll(path, os.ModePerm)
     rn,err := DownloadFile(path, ext, url)
@@ -76,6 +75,6 @@ func DownloadFile(fp string, ext string, url string) (uri string, erro error) {
     if err != nil {
         return uri,err
     }
-    uri = strings.Replace(uri,os.Getenv("RES_ROOT_DIR"),os.Getenv("RES_ENTRYPOINT"),1)
+    uri = strings.Replace(uri,os.Getenv("RES_ROOT_DIR")+os.Getenv("RES_ENTRYPOINT"),os.Getenv("RES_ENTRYPOINT"),1)
     return uri,nil
 }

@@ -36,57 +36,39 @@ func NewPageScraper(url string) (pageScraper PS) {
 
 func getHtml(doc *html.Node, page *diskclient.Page) {
     var f func(*html.Node)
-    //var wg sync.WaitGroup
     f = func(n *html.Node) {
-        //defer wg.Done()
         if n.Type == html.ElementNode && n.Data == "link" {
                 res := getHref(n.Attr)
 		if(res != nil){
 			url := formatUrl(res.Val, page.Url)
-                        //ref,err := scrapeResource(formatUrl(res.Val, page.Url))
-                        //if err == nil{
-			        page.Links = append(page.Links, url)
-                                //res.Val = HOSTPORT + ref
-                        //}
+			page.Links = append(page.Links, url)
 		}
         } else if n.Type == html.ElementNode && n.Data == "script" {
                 res := getSrc(n.Attr)
 		if(res != nil){
 			url := formatUrl(res.Val, page.Url)
-                        //ref,err := scrapeResource(formatUrl(res.Val, page.Url))
-                        //if err == nil{
-			        page.Scripts = append(page.Scripts, url)
-                                //res.Val = HOSTPORT + ref
-                        //}
+			page.Scripts = append(page.Scripts, url)
 		}
         } else if n.Type == html.ElementNode && n.Data == "img" {
 		res := getSrc(n.Attr)
 		if(res != nil){
 			url := formatUrl(res.Val, page.Url)
-		        //ref,err := scrapeResource(formatUrl(res.Val, page.Url))
-		        //if err == nil{
-			       page.Images = append(page.Images, url)
-			       //res.Val = HOSTPORT + ref
-		        //}
+			page.Images = append(page.Images, url)
 		}
         }
 
         for c := n.FirstChild; c != nil; c = c.NextSibling {
-            //wg.Add(1)
             f(c)
         }
     }
-    //wg.Add(1)
     f(doc)
-    //fmt.Println(renderNode(doc))
-    //wg.Wait()
-    fmt.Println("done!")
     page.Html = renderNode(doc)
 }
 
 func scrapeHtml(doc *html.Node, page *diskclient.Page) {
     var f func(*html.Node)
     var wg sync.WaitGroup
+    fmt.Println("scraping html!")
     f = func(n *html.Node) {
         defer wg.Done()
         if n.Type == html.ElementNode && n.Data == "link" {
@@ -111,10 +93,10 @@ func scrapeHtml(doc *html.Node, page *diskclient.Page) {
                 res := getSrc(n.Attr)
                 if(res != nil){
                         ref,err := scrapeResource(formatUrl(res.Val, page.Url))
-			fmt.Println(ref)
                         if err == nil{
                                page.Images = append(page.Images, ref)
                                res.Val = HOSTPORT + ref
+			       fmt.Println("scraped image with link " +res.Val)
                         }
                 }
         }
@@ -126,14 +108,11 @@ func scrapeHtml(doc *html.Node, page *diskclient.Page) {
     }
     wg.Add(1)
     go f(doc)
-  //  fmt.Println(renderNode(doc))
     wg.Wait()
-    fmt.Println("done!")
     page.Html = renderNode(doc)
 }
 
 func getHref(attr []html.Attribute) (att *html.Attribute) {
-	fmt.Println(attr)
         for i,a := range attr {
                 if a.Key == "href" {
                         return &attr[i]
@@ -145,7 +124,6 @@ func getHref(attr []html.Attribute) (att *html.Attribute) {
 }
 
 func getSrc(attr []html.Attribute) (att *html.Attribute) {
-	fmt.Println(attr)
         for i,a := range attr {
                 if a.Key == "src" {
                         return &attr[i]
@@ -160,7 +138,6 @@ func getSrc(attr []html.Attribute) (att *html.Attribute) {
 func scrapeResource(url string) (ref string,err error){
         rs := NewResourceScraper()
         ref, err = rs.ScrapeResource(url)
-        fmt.Println(ref)
         if err != nil{
 		return ref,err
         }
@@ -186,7 +163,6 @@ func renderNode(n *html.Node) string {
 func GetHtml(url string) (text string, err error) {
     var bytes []byte
     resp, err := http.Get(url)
-    fmt.Println(url)
     if err != nil {
         fmt.Println("There seems to ben an error with the page")
     }
@@ -200,7 +176,7 @@ func GetHtml(url string) (text string, err error) {
 }
 
 func (ps PageScraper) GetPage() (page diskclient.Page, err error) {
-    HOSTPORT = "http://" + os.Getenv("DEPLOY_HOST_IP") + ":" + "8000"
+    HOSTPORT = "http://" + os.Getenv("DEPLOY_HOST_IP") + ":" + os.Getenv("DEPLOY_HOST_PORT")
     if(len(HOSTPORT) < 1){
 	return page,errors.New("host port environment variables not set")
     }
@@ -211,7 +187,6 @@ func (ps PageScraper) GetPage() (page diskclient.Page, err error) {
     }
 
     page = diskclient.Page{ Url: ps.Url}
-    //fmt.Println(strings.NewReader(htmlSrc))
     doc, _ := html.Parse(strings.NewReader(htmlSrc))
     getHtml(doc, &page)
     if err != nil {
@@ -225,7 +200,7 @@ func (ps PageScraper) GetPage() (page diskclient.Page, err error) {
 }
 
 func (ps PageScraper) ScrapePage(page diskclient.Page) (ScrapedPage diskclient.Page, err error){
-    HOSTPORT = "http://" + os.Getenv("DEPLOY_HOST_IP") + ":" + "8000"
+    HOSTPORT = "http://" + os.Getenv("DEPLOY_HOST_IP") + ":" + os.Getenv("DEPLOY_HOST_PORT")
     if(len(HOSTPORT) < 1){
         return page,errors.New("host port environment variables not set")
     }
