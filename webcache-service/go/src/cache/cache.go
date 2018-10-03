@@ -68,7 +68,7 @@ func (c Cache) InitializeCache(policy int, capacity int64, expiry int64) (err er
 
 	cachePolicy = policy
 	cacheCapacity = capacity
-	expiryTime = expiry
+	expiryTime = expiry * 1000000000
 
 	dc, err := diskclient.Initialize(cacheCapacity)
 	if err != nil {return err}
